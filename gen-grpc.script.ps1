@@ -1,1 +1,1 @@
-protoc --proto_path=./proto --go_out=. --go-grpc_out=. --go_opt=paths=source_relative proto/chittychat.proto
+protoc --proto_path=./proto --go_out=./proto --go-grpc_out=proto proto/chittychat.proto
