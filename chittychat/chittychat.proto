@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package chittychat;
 
-option go_package = "./main";
+option go_package = "./chittychat";
 
 service ChittyChat {
     rpc Publish(Message) returns (Empty);
