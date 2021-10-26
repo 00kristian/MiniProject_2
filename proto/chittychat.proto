@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package main;
+
+option go_package = "./main";
+
+service ChittyChat {
+    rpc Publish(Message) returns (Empty);
+    rpc Broadcast(Message) returns (Message);
+    rpc Join(Username) returns (Message);
+    rpc Leave(Username) returns (Message);
+}
+
+message Message {
+    string text  = 1;
+}
+
+message Username{
+    string Name = 1;
+}
+
+message Empty{
+
+}
