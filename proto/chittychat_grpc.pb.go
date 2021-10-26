@@ -205,5 +205,5 @@ var ChittyChat_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "proto/chittychat.proto",
+	Metadata: "chittychat.proto",
 }
