@@ -1,11 +1,10 @@
-package server
+package main
 
 import (
 	"log"
 	"net"
-	"github.com/00kristian/MiniProject_2/tree/main/pb"
+	"github.com/00kristian/MiniProject_2/chittychat"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/encoding/proto"
 )
 
 func main(){
@@ -14,10 +13,10 @@ func main(){
 		log.Fatalf("Failed to listen on port 8080: %v", err)
 	}
 	
-	s := protobuf.Server{}
+	s := chittychat.Server{}
 	server := grpc.NewServer()
 
-	protobuf.RegisterChittyChatServer(server, &s)
+	chittychat.RegisterChittyChatServer(server, &s)
 	
 
 	if err := server.Serve(lis); err != nil {

@@ -1,7 +1,12 @@
 package main
 
-import "fmt"
+import (
+	"github.com/00kristian/MiniProject_2/server"
+
+	"github.com/00kristian/MiniProject_2/client"
+)
 
 func main() {
-	fmt.Println("Hello World!")
+	server.Main()
+	client.Main()
 }
