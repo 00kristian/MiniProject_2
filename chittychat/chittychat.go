@@ -1,4 +1,4 @@
-package pb
+package chittychat
 
 import (
 	"golang.org/x/net/context"

@@ -3,7 +3,7 @@ package server
 import (
 	"log"
 	"net"
-	
+	"github.com/00kristian/MiniProject_2/tree/main/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/encoding/proto"
 )

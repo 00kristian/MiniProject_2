@@ -4,7 +4,7 @@
 // 	protoc        v3.18.0
 // source: chittychat.proto
 
-package pb
+package chittychat
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
