@@ -64,7 +64,7 @@ func join(id string, name string) error {
 		for{
 			// Wait until a message is recieved in the stream
 			msg, err := str.Recv()
-			
+
 			// If an error occurs, the goroutine and the for loop must terminate. 
 			// Error is passed to the local sError variable
 			if err != nil {

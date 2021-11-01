@@ -43,7 +43,7 @@ func (s *Server) Publish(ctx context.Context, msg *proto.Message) (*proto.Empty,
 	}else{
 		log.Printf("A message was published by %s with following content: %s", msg.Id, msg.Text)
 	}
-	
+
 	s.Broadcast(ctx, msg)
 	return &proto.Empty{}, nil
 }
