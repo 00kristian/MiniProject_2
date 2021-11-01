@@ -17,6 +17,7 @@ type Connection struct {
 }
 
 type Server struct {
+	// Has to be implemented, otherwise the grpc cannot register
 	proto.UnimplementedChatServer
 	connections map[string]*Connection
 }
