@@ -21,6 +21,7 @@ type ChatClient interface {
 	Broadcast(ctx context.Context, in *Message, opts ...grpc.CallOption) (*Empty, error)
 	Join(ctx context.Context, in *User, opts ...grpc.CallOption) (Chat_JoinClient, error)
 	Publish(ctx context.Context, in *Message, opts ...grpc.CallOption) (*Empty, error)
+	Leave(ctx context.Context, in *Id, opts ...grpc.CallOption) (*Empty, error)
 }
 
 type chatClient struct {
@@ -81,6 +82,15 @@ func (c *chatClient) Publish(ctx context.Context, in *Message, opts ...grpc.Call
 	return out, nil
 }
 
+func (c *chatClient) Leave(ctx context.Context, in *Id, opts ...grpc.CallOption) (*Empty, error) {
+	out := new(Empty)
+	err := c.cc.Invoke(ctx, "/proto.Chat/Leave", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ChatServer is the server API for Chat service.
 // All implementations must embed UnimplementedChatServer
 // for forward compatibility
@@ -88,6 +98,7 @@ type ChatServer interface {
 	Broadcast(context.Context, *Message) (*Empty, error)
 	Join(*User, Chat_JoinServer) error
 	Publish(context.Context, *Message) (*Empty, error)
+	Leave(context.Context, *Id) (*Empty, error)
 	mustEmbedUnimplementedChatServer()
 }
 
@@ -103,6 +114,9 @@ func (UnimplementedChatServer) Join(*User, Chat_JoinServer) error {
 }
 func (UnimplementedChatServer) Publish(context.Context, *Message) (*Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Publish not implemented")
+}
+func (UnimplementedChatServer) Leave(context.Context, *Id) (*Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Leave not implemented")
 }
 func (UnimplementedChatServer) mustEmbedUnimplementedChatServer() {}
 
@@ -174,6 +188,24 @@ func _Chat_Publish_Handler(srv interface{}, ctx context.Context, dec func(interf
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Chat_Leave_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Id)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ChatServer).Leave(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.Chat/Leave",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ChatServer).Leave(ctx, req.(*Id))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Chat_ServiceDesc is the grpc.ServiceDesc for Chat service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -188,6 +220,10 @@ var Chat_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Publish",
 			Handler:    _Chat_Publish_Handler,
+		},
+		{
+			MethodName: "Leave",
+			Handler:    _Chat_Leave_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

@@ -23,17 +23,33 @@ type Server struct {
 	connections map[string]*Connection
 }
 
+func (s *Server) Leave(ctx context.Context, Id *proto.Id) (*proto.Empty, error){
+	temp := s.connections[Id.Id]
+	temp.user.Active = false
+	s.connections[Id.Id] = temp
+	leaveMessage := &proto.Message{
+		Id: "",
+		Text: Id.Id + " left Chitty-Chat at Lamport time y",
+	}
+	s.Broadcast(ctx, leaveMessage)
+	return &proto.Empty{}, nil
+}
+
 // Implementation of the Publish rpc - Allows users to publish messages to be broadcasted
 func (s *Server) Publish(ctx context.Context, msg *proto.Message) (*proto.Empty,error){
-	log.Printf("A message was published by %s with following content: %s", msg.Id, msg.Text)
+	// if id == "", it is a join or leave message
+	if msg.Id == ""{
+		log.Printf("A message was published with following content: %s", msg.Text)
+	}else{
+		log.Printf("A message was published by %s with following content: %s", msg.Id, msg.Text)
+	}
+	
 	s.Broadcast(ctx, msg)
 	return &proto.Empty{}, nil
 }
 
 // Implementation of the Join rpc - alllows user to join the server
 func (s *Server) Join(user *proto.User, stream proto.Chat_JoinServer) error{
-	// Log who joined the server
-	///?????
 	// Create a connection to server	
 	conn := &Connection{
 		stream: stream,
@@ -41,17 +57,11 @@ func (s *Server) Join(user *proto.User, stream proto.Chat_JoinServer) error{
 		error: make(chan error),
 	}
 	
-	// Check if the user is already in the map. If the user is just turn on the connection, instead of makin a new one
-	if val, ok := s.connections[user.Name]; ok {
-		val.user.Active = true
-		return <-conn.error
-	}
-
 	// Make the user active
 	conn.user.Active = true
 
 	// Add the connection to the map of connections
-	s.connections[conn.user.Name] = conn
+	s.connections[conn.user.Id] = conn
 
 	// Return whatever error that is in the conn error field
 	return <- conn.error
@@ -108,11 +118,17 @@ func (s *Server) Broadcast(ctx context.Context, msg *proto.Message) (*proto.Empt
 	}()
 
 	// Create logstring to be printed for a message to be broadcasted
-	logString := fmt.Sprintf("Broadcasting %s's message to active users:", msg.Id)
+	
+	logString := "" 
+	if msg.Id == ""{
+		logString = "Broadcasting message to active users:"
+	}else{
+		logString = fmt.Sprintf("Broadcasting %s's message to active users:", msg.Id)
+	}
 	for id := range aUsers{
 		logString += " " + id
 	}
-	log.Print(logString + "\n")
+	log.Print(logString + "\n\n")
 
 	// Acts as a blocker - code will not proceed from this until our done channel has been closed. That happens after all our go routines are done.
 	<- done

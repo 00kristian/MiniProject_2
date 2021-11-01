@@ -34,11 +34,21 @@ func join(id string, name string) error {
 		Active: true,
 	}
 
+	joinMessage := &proto.Message{
+		Id: "",
+		Text: user.Name + " joined Chitty-Chat at Lamport time x",
+	}
+
 	// Creates the stream, that is return when a user joins the server
 	stream, err := client.Join(context.Background(), user)
+	// Publish the join message
+	_, joinMessageErr := client.Publish(context.Background(), joinMessage)
 
 	if err != nil {
 		log.Fatalf("Connection failed: %v", err)
+	}
+	if joinMessageErr != nil {
+		log.Fatalf("Error occured when publishing join message: %v", joinMessageErr)
 	}
 
 	// Increments the wait group by one
@@ -61,8 +71,12 @@ func join(id string, name string) error {
 				sError = fmt.Errorf("Error occured when reading message: %v", err)
 				break;
 			}
-
-			log.Printf("%s: %s", msg.Id, msg.Text)
+			// If id == "", it is a join message
+			if msg.Id == "" {
+				log.Printf("%s", msg.Text)
+			}else{
+				log.Printf("%s: %s", msg.Id, msg.Text)
+			}
 		}
 	}(stream)
 
@@ -93,6 +107,10 @@ func main(){
 
 	// Creates the client on our connection
 	client = proto.NewChatClient(conn)
+	
+	// Show welcome message
+	welcome()
+
 	// Join the server with the given name and id
 	join(id, name)
 	
@@ -110,24 +128,47 @@ func main(){
 				Id: id,
 				Text: scanner.Text(),
 			}
-			
-			// Call the broadcast message and distibute the message through all active useres
-			_, err := client.Publish(context.Background(), msg)
-
-			if err != nil {
-				log.Fatalf("Error sending message: %v", err)
+			// Check if said message is a command
+			if strings.Contains(msg.Text, "\\leave"){
+				_ , errLeave := client.Leave(context.Background(), &proto.Id{Id: msg.Id})
+				if errLeave != nil{
+					log.Fatalf("Error occured when trying to leave: %v", errLeave)
+				}
+				wait.Done()
 				break
+			}else if strings.Contains(msg.Text, "\\help"){
+				fmt.Println("------------------------------------")
+				fmt.Println("Following commands are available:")
+				fmt.Println("\\leave - Exits Chitty-Chat.")
+				fmt.Println("\\help - Shows this menu again.")
+				fmt.Println("------------------------------------")
+			}else{
+				// Call the broadcast message and distibute the message through all active useres
+				_, err := client.Publish(context.Background(), msg)
+				if err != nil {
+					log.Fatalf("Error sending message: %v", err)
+					break
+				}
 			}
 		}
 	}()
-
+	
 	// Go routine that spawns anonymous function that ensures that the wait group waits for the go routines to exit
 	go func(){
 		wait.Wait()
 		// Closes our done dummy channel
 		close(done)
 	}()
-	
+
 	// Acts as a blocker - code will not proceed from this until our done channel has been closed. That happens after all our go routines are done.
 	<- done
+}
+
+func welcome(){
+	fmt.Println("Welcome to Chitty-chat! =^.^=")
+	fmt.Println("------------------------------------")
+	fmt.Println("Following commands are available:")
+	fmt.Println("\\leave - Exits Chitty-Chat.")
+	fmt.Println("\\help - Shows this menu again.")
+	fmt.Println("------------------------------------")
 }
