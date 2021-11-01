@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net"
 	"sync"
@@ -22,8 +23,17 @@ type Server struct {
 	connections map[string]*Connection
 }
 
+// Implementation of the Publish rpc - Allows users to publish messages to be broadcasted
+func (s *Server) Publish(ctx context.Context, msg *proto.Message) (*proto.Empty,error){
+	log.Printf("A message was published by %s with following content: %s", msg.Id, msg.Text)
+	s.Broadcast(ctx, msg)
+	return &proto.Empty{}, nil
+}
+
 // Implementation of the Join rpc - alllows user to join the server
 func (s *Server) Join(user *proto.User, stream proto.Chat_JoinServer) error{
+	// Log who joined the server
+	///?????
 	// Create a connection to server	
 	conn := &Connection{
 		stream: stream,
@@ -55,23 +65,27 @@ func (s *Server) Broadcast(ctx context.Context, msg *proto.Message) (*proto.Empt
 	// Dummy channel for us to know when our all our go routines are done
 	done := make(chan int)
 
-	
+	// Channel to pick up id's of active users
+	aUsers := make(chan string, 10)
+
 	//Loop through all connections
 	for name, conn := range s.connections {
 		//Increments the counter of the wait group - increments by one for each connection
 		wait.Add(1)
+		// Gather active users
 		
 		// Go routine that spawn an anonymous function
 		go func (msg *proto.Message, conn *Connection){
 			// When the method exits, decrement the wait group by one
 			defer wait.Done()
-
+			
+			
 			// Check if user is active, and act if the user is
 			if conn.user.Active {
 				// Send message to the client which is attached to given connection
 				err := conn.stream.Send(msg)
-				// Log which message is sent on the server
-				log.Printf("Sending %s's to everyone", name)
+				
+				aUsers <- conn.user.Id
 				
 				// If an error occurs - print the error and terminate the conneciton making the user go offline
 				if err != nil {
@@ -87,10 +101,19 @@ func (s *Server) Broadcast(ctx context.Context, msg *proto.Message) (*proto.Empt
 	// Go routine that spawns anonymous function that ensures that the wait group waits for the go routines to exit
 	go func(){
 		wait.Wait()
+		// Closes our active user channel in order to loop over it
+		close(aUsers)
 		// Closes our done dummy channel
 		close(done)
 	}()
-	
+
+	// Create logstring to be printed for a message to be broadcasted
+	logString := fmt.Sprintf("Broadcasting %s's message to active users:", msg.Id)
+	for id := range aUsers{
+		logString += " " + id
+	}
+	log.Print(logString + "\n")
+
 	// Acts as a blocker - code will not proceed from this until our done channel has been closed. That happens after all our go routines are done.
 	<- done
 	

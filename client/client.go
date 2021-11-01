@@ -112,7 +112,7 @@ func main(){
 			}
 			
 			// Call the broadcast message and distibute the message through all active useres
-			_, err := client.Broadcast(context.Background(), msg)
+			_, err := client.Publish(context.Background(), msg)
 
 			if err != nil {
 				log.Fatalf("Error sending message: %v", err)

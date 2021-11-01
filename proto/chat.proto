@@ -7,6 +7,7 @@ option go_package = "./proto";
 service Chat {
     rpc Broadcast(Message) returns (Empty);
     rpc Join(User) returns (stream Message);
+    rpc Publish(Message) returns (Empty);
 }
 
 message Message {
