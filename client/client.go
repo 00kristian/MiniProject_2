@@ -138,12 +138,17 @@ func main(){
 		// Create scanner in order to scan user messages
 		scanner := bufio.NewScanner(os.Stdin)
 		for scanner.Scan(){
+			msgContent := strings.TrimSpace(scanner.Text())
+			if !validateMsg(msgContent) {
+				fmt.Println("Please type a valid message. A valid message is a UTF-8 encoded string consisting of max 128 characters.")
+				continue 
+			}
 			mu.Lock()
 			lamport += 1
 			mu.Unlock()
 			msg := &proto.Message{
 				Id: id,
-				Text: scanner.Text(),
+				Text: msgContent,
 				Lamport: lamport,
 			}
 			// Check if said message is a command
@@ -197,4 +202,8 @@ func max(x, y uint64) uint64{
 	}else {
 		return y
 	}
+}
+
+func validateMsg(x string) bool {
+	return len(x) <= 128
 }
