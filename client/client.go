@@ -17,6 +17,11 @@ import (
 var client proto.ChatClient
 // Global wait group
 var wait *sync.WaitGroup
+// Mutex for locking
+var mu sync.Mutex
+
+// lamport time for given client
+var lamport uint64 = 0
 
 // Init func to initialize the wait group
 func init(){
@@ -34,9 +39,15 @@ func join(id string, name string) error {
 		Active: true,
 	}
 
+	// join event increments lamport by one
+	mu.Lock()
+	lamport += 1
+	mu.Unlock()
+
 	joinMessage := &proto.Message{
 		Id: "",
-		Text: user.Name + " joined Chitty-Chat at Lamport time x",
+		Text: user.Name + " joined Chitty-Chat at Lamport time ",
+		Lamport: lamport,
 	}
 
 	// Creates the stream, that is return when a user joins the server
@@ -64,6 +75,9 @@ func join(id string, name string) error {
 		for{
 			// Wait until a message is recieved in the stream
 			msg, err := str.Recv()
+			mu.Lock()
+			lamport = max(lamport, msg.Lamport) + 1
+			mu.Unlock()
 
 			// If an error occurs, the goroutine and the for loop must terminate. 
 			// Error is passed to the local sError variable
@@ -73,9 +87,9 @@ func join(id string, name string) error {
 			}
 			// If id == "", it is a join message
 			if msg.Id == "" {
-				log.Printf("%s", msg.Text)
+				log.Printf("[%s: %d] %s", user.Id, lamport, msg.Text)
 			}else{
-				log.Printf("%s: %s", msg.Id, msg.Text)
+				log.Printf("[%s: %d] %s: %s", user.Id, lamport, msg.Id, msg.Text)
 			}
 		}
 	}(stream)
@@ -124,25 +138,29 @@ func main(){
 		// Create scanner in order to scan user messages
 		scanner := bufio.NewScanner(os.Stdin)
 		for scanner.Scan(){
+			mu.Lock()
+			lamport += 1
+			mu.Unlock()
 			msg := &proto.Message{
 				Id: id,
 				Text: scanner.Text(),
+				Lamport: lamport,
 			}
 			// Check if said message is a command
 			if strings.Contains(msg.Text, "\\leave"){
-				_ , errLeave := client.Leave(context.Background(), &proto.Id{Id: msg.Id})
+				_ , errLeave := client.Leave(context.Background(), &proto.Id{Id: msg.Id, Lamport: msg.Lamport})
 				if errLeave != nil{
 					log.Fatalf("Error occured when trying to leave: %v", errLeave)
 				}
 				wait.Done()
 				break
-			}else if strings.Contains(msg.Text, "\\help"){
+			} else if strings.Contains(msg.Text, "\\help"){
 				fmt.Println("------------------------------------")
 				fmt.Println("Following commands are available:")
 				fmt.Println("\\leave - Exits Chitty-Chat.")
 				fmt.Println("\\help - Shows this menu again.")
 				fmt.Println("------------------------------------")
-			}else{
+			} else{
 				// Call the broadcast message and distibute the message through all active useres
 				_, err := client.Publish(context.Background(), msg)
 				if err != nil {
@@ -171,4 +189,12 @@ func welcome(){
 	fmt.Println("\\leave - Exits Chitty-Chat.")
 	fmt.Println("\\help - Shows this menu again.")
 	fmt.Println("------------------------------------")
+}
+
+func max(x, y uint64) uint64{
+	if x >= y{
+		return x
+	}else {
+		return y
+	}
 }

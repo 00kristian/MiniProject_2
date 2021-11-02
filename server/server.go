@@ -11,6 +11,12 @@ import (
 	"google.golang.org/grpc"
 )
 
+// Mutex for locking lamport
+var mu sync.Mutex
+
+// Lamport time for server
+var lamport uint64 = 0
+
 type Connection struct {
 	stream proto.Chat_JoinServer
 	user *proto.User
@@ -24,12 +30,15 @@ type Server struct {
 }
 
 func (s *Server) Leave(ctx context.Context, Id *proto.Id) (*proto.Empty, error){
+	mu.Lock()
+	lamport = max(lamport, Id.Lamport) + 1
+	mu.Unlock()
 	temp := s.connections[Id.Id]
 	temp.user.Active = false
 	s.connections[Id.Id] = temp
 	leaveMessage := &proto.Message{
 		Id: "",
-		Text: Id.Id + " left Chitty-Chat at Lamport time y",
+		Text: Id.Id + " left Chitty-Chat at Lamport time " + fmt.Sprintf("%d", lamport),
 	}
 	s.Broadcast(ctx, leaveMessage)
 	return &proto.Empty{}, nil
@@ -37,14 +46,24 @@ func (s *Server) Leave(ctx context.Context, Id *proto.Id) (*proto.Empty, error){
 
 // Implementation of the Publish rpc - Allows users to publish messages to be broadcasted
 func (s *Server) Publish(ctx context.Context, msg *proto.Message) (*proto.Empty,error){
+	mu.Lock()
+	lamport = max(lamport, msg.Lamport) + 1
+	mu.Unlock()
+	
 	// if id == "", it is a join or leave message
 	if msg.Id == ""{
-		log.Printf("A message was published with following content: %s", msg.Text)
+		updatedMsg := &proto.Message{
+			Id: msg.Id,
+			Text: msg.Text + fmt.Sprintf("%d", lamport),
+			Lamport: lamport,
+		}
+		log.Printf("[Server: %d] A message was published with following content: %s", lamport, updatedMsg.Text)
+		s.Broadcast(ctx, updatedMsg)
 	}else{
-		log.Printf("A message was published by %s with following content: %s", msg.Id, msg.Text)
+		log.Printf("[Server: %d] A message was published by %s with following content: %s", lamport, msg.Id, msg.Text)
+		s.Broadcast(ctx, msg)
 	}
 
-	s.Broadcast(ctx, msg)
 	return &proto.Empty{}, nil
 }
 
@@ -76,8 +95,8 @@ func (s *Server) Broadcast(ctx context.Context, msg *proto.Message) (*proto.Empt
 	done := make(chan int)
 
 	// Channel to pick up id's of active users
-	aUsers := make(chan string, 10)
-
+	//aUsers := make(chan string, 10)
+	log.Printf("[Server: %d] Broadcasting message to active users:", lamport)
 	//Loop through all connections
 	for name, conn := range s.connections {
 		//Increments the counter of the wait group - increments by one for each connection
@@ -92,10 +111,19 @@ func (s *Server) Broadcast(ctx context.Context, msg *proto.Message) (*proto.Empt
 			
 			// Check if user is active, and act if the user is
 			if conn.user.Active {
+				mu.Lock()
+				lamport += 1
+				updatedMsg := &proto.Message{
+					Id: msg.Id,
+					Text: msg.Text,
+					Lamport: lamport,
+				}
+				mu.Unlock()
+				log.Printf("[Server: %d] Sending message to %s.", lamport, conn.user.Id)
 				// Send message to the client which is attached to given connection
-				err := conn.stream.Send(msg)
+				err := conn.stream.Send(updatedMsg)
 				
-				aUsers <- conn.user.Id
+				//aUsers <- conn.user.Id
 				
 				// If an error occurs - print the error and terminate the conneciton making the user go offline
 				if err != nil {
@@ -112,23 +140,23 @@ func (s *Server) Broadcast(ctx context.Context, msg *proto.Message) (*proto.Empt
 	go func(){
 		wait.Wait()
 		// Closes our active user channel in order to loop over it
-		close(aUsers)
+		//close(aUsers)
 		// Closes our done dummy channel
 		close(done)
 	}()
 
 	// Create logstring to be printed for a message to be broadcasted
 	
-	logString := "" 
-	if msg.Id == ""{
-		logString = "Broadcasting message to active users:"
-	}else{
-		logString = fmt.Sprintf("Broadcasting %s's message to active users:", msg.Id)
-	}
-	for id := range aUsers{
-		logString += " " + id
-	}
-	log.Print(logString + "\n\n")
+	// logString := "" 
+	// if msg.Id == ""{
+	// 	logString = "Broadcasting message to active users:"
+	// }else{
+	// 	logString = fmt.Sprintf("Broadcasting %s's message to active users:", msg.Id)
+	// }
+	// for id := range aUsers{
+	// 	logString += " " + id
+	// }
+	// log.Print(logString + "\n\n")
 
 	// Acts as a blocker - code will not proceed from this until our done channel has been closed. That happens after all our go routines are done.
 	<- done
@@ -157,11 +185,19 @@ func main(){
 	}
 
 	//Print to show that server has started
-	log.Print("Started server on port: 8080")
+	log.Printf("[Server: %d] Started server on port: 8080", lamport)
 
 	// Register our Chat server on out grpc server, and pass our service which is the server type
 	proto.RegisterChatServer(grpcServer, server)
 
 	// Serve incomming connetions to the listener
 	grpcServer.Serve(listener)
+}
+
+func max(x, y uint64) uint64{
+	if x >= y{
+		return x
+	}else {
+		return y
+	}
 }
