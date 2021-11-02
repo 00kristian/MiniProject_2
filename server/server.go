@@ -93,10 +93,10 @@ func (s *Server) Broadcast(ctx context.Context, msg *proto.Message) (*proto.Empt
 
 	// Dummy channel for us to know when our all our go routines are done
 	done := make(chan int)
-
-	// Channel to pick up id's of active users
-	//aUsers := make(chan string, 10)
+	
+	// Status message to indicate start of broadcasting
 	log.Printf("[Server: %d] Broadcasting message to active users:", lamport)
+
 	//Loop through all connections
 	for name, conn := range s.connections {
 		//Increments the counter of the wait group - increments by one for each connection
@@ -123,8 +123,6 @@ func (s *Server) Broadcast(ctx context.Context, msg *proto.Message) (*proto.Empt
 				// Send message to the client which is attached to given connection
 				err := conn.stream.Send(updatedMsg)
 				
-				//aUsers <- conn.user.Id
-				
 				// If an error occurs - print the error and terminate the conneciton making the user go offline
 				if err != nil {
 					log.Fatalf("Error sending message %s - Error: %v", name, err)
@@ -139,24 +137,9 @@ func (s *Server) Broadcast(ctx context.Context, msg *proto.Message) (*proto.Empt
 	// Go routine that spawns anonymous function that ensures that the wait group waits for the go routines to exit
 	go func(){
 		wait.Wait()
-		// Closes our active user channel in order to loop over it
-		//close(aUsers)
 		// Closes our done dummy channel
 		close(done)
 	}()
-
-	// Create logstring to be printed for a message to be broadcasted
-	
-	// logString := "" 
-	// if msg.Id == ""{
-	// 	logString = "Broadcasting message to active users:"
-	// }else{
-	// 	logString = fmt.Sprintf("Broadcasting %s's message to active users:", msg.Id)
-	// }
-	// for id := range aUsers{
-	// 	logString += " " + id
-	// }
-	// log.Print(logString + "\n\n")
 
 	// Acts as a blocker - code will not proceed from this until our done channel has been closed. That happens after all our go routines are done.
 	<- done
